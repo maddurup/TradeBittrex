@@ -12,12 +12,8 @@ class BittrexShell(cmd.Cmd):
 	# print(my_bittrex.get_markets())
     def __init__(self):
         cmd.Cmd.__init__(self)
-        self.my_bittrex = Bittrex("key", "secert")
-        # self.trader.login(username=USERNAME, password=PASSWORD)
-	# my_bittrex = 
+        self.my_bittrex = Bittrex("Key", "Secert")
 
-	# print(my_bittrex.buy_limit('BTC-RCN',100,0.00001943))
-	# pprint(my_bittrex.get_open_orders())
     def do_b(self, arg):
         'Buy stock b <symbol> <quantity> <price>'
         parts = arg.split()
@@ -65,7 +61,7 @@ class BittrexShell(cmd.Cmd):
     def do_o(self, arg):
         'List open orders'
         open_orders = self.my_bittrex.get_open_orders()
-        # pp.pprint(open_orders)
+        pp.pprint(open_orders)
         if open_orders:
             table = BeautifulTable(max_width=150)
             table.column_headers = ["Index","Exchange", "ImmediateOrCancel", "IsConditional", "Limit", "OrderType", "Opened","OrderUuid","Quantity","QuantityRemaining"]
@@ -91,6 +87,45 @@ class BittrexShell(cmd.Cmd):
             return table
         else:
             print("No Open Orders")
+    
+    def do_l(self, arg):
+        'Lists current portfolio'
+        portfolio = self.my_bittrex.get_balance_distribution()
+        pp.pprint(portfolio)
+        print('Equity Value: ' + str(portfolio['equity']))
+
+        account_details = self.trader.get_account()
+        if 'margin_balances' in account_details:
+            print('Buying Power:', account_details['margin_balances']['unallocated_margin_cash'])
+
+        positions = self.trader.securities_owned()
+
+        symbols = []
+        buy_price_data = {}
+        for position in positions['results']:
+            symbol = self.get_symbol(position['instrument'])
+            buy_price_data[symbol] = position['average_buy_price']
+            symbols.append(symbol)
+
+        quotes_data = {}
+        if len(symbols) > 0:
+            raw_data = self.trader.quotes_data(symbols)
+            for quote in raw_data:
+                quotes_data[quote['symbol']] = quote['last_trade_price']
+
+        table = BeautifulTable()
+        table.column_headers = ["symbol", "current price", "quantity", "total equity", "cost basis", "p/l"]
+
+        for position in positions['results']:
+            quantity = int(float(position['quantity']))
+            symbol = self.get_symbol(position['instrument'])
+            price = quotes_data[symbol]
+            total_equity = float(price) * quantity
+            buy_price = float(buy_price_data[symbol])
+            p_l = total_equity - buy_price * quantity
+            table.append_row([symbol, price, quantity, total_equity, buy_price, p_l])
+
+        print(table)
 
     def do_ca(self, arg):
         'Cancel all open orders'
@@ -108,7 +143,13 @@ class BittrexShell(cmd.Cmd):
             print("Error cancelling - could be no Open Orders " + str(e))
         print("Done")
 
-    
+    def do_q(self, arg):
+        'Get quote for stock q <symbol>' 	
+        symbol = arg.strip()
+        try:
+            pp.pprint("{:.8f}".format(float(self.my_bittrex.get_ticker(symbol)['result']['Last'])))
+        except Exception as e:
+            print("Error getting quote for:", symbol + " - " + str(e))
 
 if __name__ == '__main__':
     BittrexShell().cmdloop()
