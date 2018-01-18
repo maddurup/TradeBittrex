@@ -6,14 +6,14 @@ import pprint, time
 pp = pprint.PrettyPrinter(indent=4)
 
 class BittrexShell(cmd.Cmd):
-    intro = 'Welcome to the Bittrex shell. Type help or ? to list commands.\n'
+    intro = 'Welcome to the Bittrex shell. Type help or ? to list commands.\n b , bb , s , o , l, c , ca, qb'
     prompt = '> '
     my_bittrex = Bittrex(None, None)  # or defaulting to v1.1 as Bittrex(None, None)
 	# print(my_bittrex.get_markets())
     def __init__(self):
         cmd.Cmd.__init__(self)
         self.my_bittrex = Bittrex("Key", "Secert")
-
+        
     def do_b(self, arg):
         'Buy stock b <symbol> <quantity> <price>'
         parts = arg.split()
@@ -41,7 +41,38 @@ class BittrexShell(cmd.Cmd):
             #     print(      "Sell code             :- " + "s " + symbol + " " + str(quantity) + " " + str(price))
         else:
             print("Bad Order")
-    
+
+    def do_bb(self, arg):
+        'Buy stock bb <symbol> <btc_value_to_buy>'
+        parts = arg.split()
+        if len(parts) == 2:
+            symbol = parts[0]
+            btc_value = parts[1]
+            last_value_of_symbol = float("{:.8f}".format(float(self.my_bittrex.get_ticker(symbol)['result']['Last'])))
+            quantity = float(btc_value)/last_value_of_symbol
+
+            if len(parts) == 3:
+                price = float(parts[2])
+            else:
+                price = 0.0
+            print(price)    
+            # stock_instrument = self.my_bittrex.buy_limit('BTC-RCN',100,0.00001943)
+            res = self.my_bittrex.buy_limit(symbol,quantity,last_value_of_symbol)
+            pp.pprint(res)
+            # if not (res.status_code == 200 or res.status_code == 201):
+            #     print("Error executing order")
+            #     try:
+            #         data = res.json()
+            #         if 'detail' in data:
+            #             print(data['detail'])
+            #     except:
+            #         print(data['detail'])
+            # else:
+            #     print("Done\nTrailing stoploss code:- " + "p " + symbol + " " + str(quantity) + " " + str(price) + " 0.0")
+            #     print(      "Sell code             :- " + "s " + symbol + " " + str(quantity) + " " + str(price))
+        else:
+            print("Bad Order")
+   
     def do_s(self, arg):
         'Sell stock s <symbol> <quantity> <?price>'
         parts = arg.split()
@@ -87,10 +118,11 @@ class BittrexShell(cmd.Cmd):
             return table
         else:
             print("No Open Orders")
+        print('done')
     
     def do_l(self, arg):
         'Lists current portfolio'
-        portfolio = self.my_bittrex.get_balance_distribution()
+        portfolio = self.my_bittrex.get_balance()
         pp.pprint(portfolio)
         print('Equity Value: ' + str(portfolio['equity']))
 
@@ -127,6 +159,21 @@ class BittrexShell(cmd.Cmd):
 
         print(table)
 
+    def do_c(self, arg):
+        'Cancel open orders for a Coin'
+
+        try:
+            open_orders = self.my_bittrex.get_open_orders()
+            # pp.pprint(json.loads(open_orders['result']))
+            print([obj['OrderUuid'] for obj in open_orders['result'] if(obj['Exchange'] == arg)])
+            open_orders_for_arg = [obj['OrderUuid'] for obj in open_orders['result'] if(obj['Exchange'] == arg)]
+            for i in open_orders_for_arg:
+                print(i)
+                pp.pprint(self.my_bittrex.cancel(i))
+        except Exception as e:
+            print("Error cancelling - could be no Open Orders " + str(e))
+        print("Done")
+
     def do_ca(self, arg):
         'Cancel all open orders'
         # open_orders = self.trader.get_open_orders()
@@ -138,18 +185,31 @@ class BittrexShell(cmd.Cmd):
         try:
             open_orders = BittrexShell.do_o(self,arg)
             for i in open_orders['OrderUuid']:
-                self.my_bittrex.cancel(i)
+                pp.pprint(self.my_bittrex.cancel(i))
         except Exception as e:
             print("Error cancelling - could be no Open Orders " + str(e))
         print("Done")
 
     def do_q(self, arg):
         'Get quote for stock q <symbol>' 	
-        symbol = arg.strip()
+        symbol = arg
         try:
             pp.pprint("{:.8f}".format(float(self.my_bittrex.get_ticker(symbol)['result']['Last'])))
         except Exception as e:
             print("Error getting quote for:", symbol + " - " + str(e))
+
+    def do_qb(self,arg):
+        'Get quote and quantity you can buy for <symbol>'
+        parts = arg.split()
+        if len(parts) == 2:
+            symbol = parts[0]
+            btc_value = parts[1]
+        try:
+            pp.pprint(float(btc_value)/float("{:.8f}".format(float(self.my_bittrex.get_ticker(symbol)['result']['Last']))))
+        except Exception as e:
+            print("Error getting quote for:", symbol + " - " + str(e))
+
+
 
 if __name__ == '__main__':
     BittrexShell().cmdloop()
